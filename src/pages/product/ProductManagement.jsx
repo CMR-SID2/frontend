@@ -1,29 +1,34 @@
-import { useState } from 'react';
+import { useEffect, useState } from "react";
 import {
     Button,
-    Dialog,
-    DialogHeader,
-    DialogBody,
-    DialogFooter,
-    Input,
-    Textarea,
-    Select,
-    Option,
     Alert,
     IconButton,
     Typography,
     Card,
     CardBody,
     CardFooter,
-    Chip
+    Chip,
+    CardHeader,
+    Menu,
+    MenuHandler,
+    MenuList,
+    MenuItem,
 } from "@material-tailwind/react";
 import {
     PlusIcon,
     PencilSquareIcon,
     TrashIcon,
     ExclamationTriangleIcon,
-    XMarkIcon
+    TagIcon,
+    ChevronDownIcon,
 } from "@heroicons/react/24/outline";
+import { AddCategoryPopUp, AddProductPopUp, DeleteCategoryPopUp, DeleteProductPopUp, EditProductPopUp } from "../../widgets/popup";
+import { createCategory, deleteCategory, getCategories } from "../../services";
+import { createProduct, deleteProduct, editProduct, getProducts } from "../../services/ProductServices";
+import { images } from "../../data";
+import { ImagePlacehoderSkeleton } from "../../widgets/skeleton";
+import { useNavigate } from "react-router-dom";
+import { generateUploadURL } from "../../bucket/amazon";
 
 export function ProductManagement() {
     // Estados para los diálogos
@@ -31,94 +36,82 @@ export function ProductManagement() {
     const [isEditOpen, setIsEditOpen] = useState(false);
     const [isDeleteOpen, setIsDeleteOpen] = useState(false);
     const [showAlert, setShowAlert] = useState(false);
-    const [alertData, setAlertData] = useState({ type: '', message: '' });
+    const [type, setType] = useState("laptop");
+    const [category, setCategory] = useState("");
+    const [alertData, setAlertData] = useState({ type: "", message: "" });
+    const [imageError, setImageError] = useState([]);
+
+
+    // Estados para la lista de productos y categorias y su fetch
+    const [products, setProducts] = useState([]);
+    const [categories, setCategories] = useState([]);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(null);
+    const [refresh, setRefresh] = useState(false);
+
+    // Estados para las categorias
+    const [isCategoryDialogOpen, setIsCategoryDialogOpen] = useState(false);
+    const [isDeleteCategoryOpen, setIsDeleteCategoryOpen] = useState(false);
+    const [selectedCategory, setSelectedCategory] = useState(null);
+    const [newCategoryName, setNewCategoryName] = useState("");
+    const [newCategoryDescription, setNewCategoryDescription] = useState("");
+
+    // Manejadores para categorías
+    const handleCreateCategory = async () => {
+        if (!newCategoryName.trim()) {
+            showNotification("error", "El nombre de la categoría es requerido");
+            return;
+        }
+
+        try {
+            const response = await createCategory({ name: newCategoryName, description: newCategoryDescription });
+            if (response.status === 200) {
+                setRefresh(ref => !ref);
+                setIsCategoryDialogOpen(false);
+                setNewCategoryName("");
+                setNewCategoryDescription("");
+                showNotification("success", "Categoría creada exitosamente");
+            }
+        } catch (error) {
+            showNotification("error", "Error al crear la categoría");
+        }
+    };
+
+    const handleDeleteCategory = async () => {
+        try {
+            const response = await deleteCategory(selectedCategory.id);
+            if (response.status === 200) {
+                setRefresh(ref => !ref);
+                setIsDeleteCategoryOpen(false);
+                showNotification("success", "Categoría eliminada exitosamente");
+            }
+        } catch (error) {
+            showNotification("error", "Error al eliminar la categoría");
+        }
+    };
 
     // Estado para el producto seleccionado
     const [selectedProduct, setSelectedProduct] = useState(null);
 
-    // Estado para la lista de productos
-    const [products, setProducts] = useState([
-        {
-            id: 1,
-            name: "Laptop Ultra Pro",
-            price: 1299.99,
-            image: "https://cdn.thewirecutter.com/wp-content/media/2023/07/4kmonitors-2048px-9794.jpg",
-            category: "laptops",
-            stock: 10,
-            specifications: {
-                Procesador: "Intel Core i7",
-                RAM: "16 GB",
-                Almacenamiento: "512 GB SSD",
-                Pantalla: "15.6 pulgadas 4K",
-            },
-            description: "Laptop de alto rendimiento para profesionales",
-            status: "active"
-        },
-        {
-            id: 2,
-            name: "Portatil Asus",
-            price: 1400.99,
-            image: "https://cdn.thewirecutter.com/wp-content/media/2024/07/laptopsunder500-2048px-5452.jpg?auto=webp&quality=75&width=1024",
-            category: "laptops",
-            stock: 14,
-            specifications: {
-                Procesador: "Intel Core i7",
-                RAM: "16 GB",
-                Almacenamiento: "512 GB SSD",
-                Pantalla: "15.6 pulgadas 4K",
-            },
-            description: "Laptop de alto rendimiento para profesionales",
-            status: "active"
-        },
-
-    ]);
 
     // Estado para el formulario
-    const [formData, setFormData] = useState({
-        name: '',
-        price: '',
-        category: '',
-        stock: '',
-        description: '',
-        specifications: {
-            Procesador: '',
-            RAM: '',
-            Almacenamiento: '',
-            Pantalla: ''
-        },
-        status: 'active'
-    });
+    const [formData, setFormData] = useState({ "productType": type });
+
+    const navigate = useNavigate();
+    if (!sessionStorage.getItem("roles") || !sessionStorage.getItem("roles").includes("ADMIN")) {
+        navigate("/products");
+    }
+
 
     // Manejadores para los diálogos
     const handleCreateOpen = () => {
-        setFormData({
-            name: '',
-            price: '',
-            category: '',
-            stock: '',
-            description: '',
-            specifications: {
-                Procesador: '',
-                RAM: '',
-                Almacenamiento: '',
-                Pantalla: ''
-            },
-            status: 'active'
-        });
+        setFormData({});
         setIsCreateOpen(true);
     };
 
     const handleEditOpen = (product) => {
         setSelectedProduct(product);
-        setFormData({
-            name: product.name,
-            price: product.price,
-            category: product.category,
-            stock: product.stock,
-            description: product.description,
-            specifications: { ...product.specifications },
-            status: product.status
-        });
+        setFormData(product);
         setIsEditOpen(true);
     };
 
@@ -130,52 +123,89 @@ export function ProductManagement() {
     // Manejadores para el formulario
     const handleInputChange = (e) => {
         const { name, value } = e.target;
-        setFormData(prev => ({
+        setFormData((prev) => ({
             ...prev,
-            [name]: value
-        }));
-    };
-
-    const handleSpecificationChange = (key, value) => {
-        setFormData(prev => ({
-            ...prev,
-            specifications: {
-                ...prev.specifications,
-                [key]: value
-            }
+            [name]: value,
         }));
     };
 
     // Funciones para las operaciones CRUD
-    const handleCreate = () => {
+    const handleCreate = async (imagesToSend) => {
+
+        if (formData?.connectivityOptions) {
+            formData.connectivityOptions = formData.connectivityOptions.split(",");
+        }
+
+        console.log("Form data", formData);
+
         const newProduct = {
-            id: Date.now(),
             ...formData,
-            image: "/api/placeholder/200/150" // Placeholder para la imagen
+            images: imagesToSend,
+            productType: type,
+            releaseDate: new Date(formData.releaseDate).getTime(),
         };
-        setProducts(prev => [...prev, newProduct]);
-        setIsCreateOpen(false);
-        showNotification('success', 'Producto creado exitosamente');
+        console.log("New product", newProduct);
+
+        try {
+            const response = await createProduct(newProduct);
+
+            if (response.status === 200) {
+                setRefresh(ref => !ref);
+                setIsCreateOpen(false);
+                showNotification("success", "Producto creado exitosamente");
+            }
+
+        } catch (error) {
+            console.log("Error", error);
+            showNotification("error", "Error al crear el producto");
+
+        }
+
     };
 
-    const handleEdit = () => {
-        setProducts(prev =>
-            prev.map(product =>
-                product.id === selectedProduct.id
-                    ? { ...product, ...formData }
-                    : product
-            )
-        );
-        setIsEditOpen(false);
-        showNotification('success', 'Producto actualizado exitosamente');
+    const handleEdit = async () => {
+        if (formData?.connectivityOptions) {
+            formData.connectivityOptions = formData.connectivityOptions.split(",");
+        }
+        const updatedProduct = {
+            ...formData,
+            releaseDate: new Date(formData.releaseDate).getTime(),
+        };
+
+        console.log("Updated product", updatedProduct);
+        try {
+
+            const response = await editProduct(updatedProduct.id, updatedProduct);
+
+            if (response.status === 200) {
+                setRefresh(ref => !ref);
+                setIsEditOpen(false);
+                showNotification("success", "Producto actualizado exitosamente");
+            }
+        } catch (error) {
+            console.log("Error", error);
+            showNotification("error", "Error al editar el producto");
+        }
+
     };
 
-    const handleDelete = () => {
-        setProducts(prev =>
-            prev.filter(product => product.id !== selectedProduct.id)
-        );
-        setIsDeleteOpen(false);
-        showNotification('success', 'Producto eliminado exitosamente');
+    const handleDelete = async () => {
+
+
+        try {
+            const response = await deleteProduct(selectedProduct.id);
+            if (response.status === 200) {
+                setRefresh(ref => !ref);
+                setIsDeleteOpen(false);
+                showNotification("success", "Producto eliminado exitosamente");
+            }
+        } catch (error) {
+            console.log("Error", error);
+            setIsDeleteOpen(false);
+            showNotification("error", "Error al eliminar el producto");
+        }
+
+
     };
 
     // Función para mostrar notificaciones
@@ -185,6 +215,25 @@ export function ProductManagement() {
         setTimeout(() => setShowAlert(false), 3000);
     };
 
+
+    useEffect(() => {
+        const fetchData = async () => {
+            setLoading(true);
+            setError(null);
+            try {
+                const categoriesResponse = await getCategories();
+                setCategories(categoriesResponse.data);
+                const productsResponse = await getProducts();
+                setProducts(productsResponse.data);
+            } catch (err) {
+                setError("Error al cargar las categorías");
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchData();
+    }, [refresh]);
+
     return (
         <div className="container mx-auto px-4 py-8">
             {/* Botón para crear nuevo producto */}
@@ -192,33 +241,86 @@ export function ProductManagement() {
                 <Typography variant="h4" color="blue-gray">
                     Gestión de Productos
                 </Typography>
-                <Button
-                    className="flex items-center gap-2"
-                    onClick={handleCreateOpen}
-                >
-                    <PlusIcon className="h-5 w-5" />
-                    Nuevo Producto
-                </Button>
+                <div className="flex items-center gap-4">
+                    <Menu placement="bottom-end">
+                        <MenuHandler>
+                            <Button
+                                variant="outlined"
+                                className="flex items-center gap-2"
+                            >
+                                <TagIcon className="h-5 w-5" />
+                                Categorías
+                                <ChevronDownIcon className="h-4 w-4" />
+                            </Button>
+                        </MenuHandler>
+                        <MenuList>
+                            <MenuItem
+                                onClick={() => setIsCategoryDialogOpen(true)}
+                                className="flex items-center gap-2"
+                            >
+                                <PlusIcon className="h-4 w-4" />
+                                Nueva Categoría
+                            </MenuItem>
+                            <hr className="my-2" />
+                            {categories.map((cat) => (
+                                <MenuItem
+                                    key={cat.id}
+                                    className="flex items-center justify-between"
+                                >
+                                    <span>{cat.name}</span>
+                                    <IconButton
+                                        variant="text"
+                                        color="red"
+                                        size="sm"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setSelectedCategory(cat);
+                                            setIsDeleteCategoryOpen(true);
+                                        }}
+                                    >
+                                        <TrashIcon className="h-4 w-4" />
+                                    </IconButton>
+                                </MenuItem>
+                            ))}
+                        </MenuList>
+                    </Menu>
+                    <Button
+                        className="flex items-center gap-2"
+                        onClick={handleCreateOpen}
+                    >
+                        <PlusIcon className="h-5 w-5" />
+                        Nuevo Producto
+                    </Button>
+                </div>
             </div>
 
             {/* Lista de productos */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-16">
                 {products.map((product) => (
-                    <Card key={product.id} className="overflow-hidden">
-                        <CardBody>
-                            <div className="relative">
+                    <Card key={product.id} className="overflow-hidden flex flex-col items-center">
+                        <CardHeader color="white" className="h-[80%] w-[80%] mt-4">
+                            {(imageError && imageError.includes(product.id)) ? (
+                                <>
+                                    <div className='w-full h-full object-cover rounded-lg'>
+                                        <ImagePlacehoderSkeleton />
+                                    </div>
+                                </>
+                            ) : (
                                 <img
-                                    src={product.image}
+                                    src={product.images.front}
                                     alt={product.name}
-                                    className="w-full h-48 object-cover rounded-lg"
+                                    className="w-full h-full object-cover rounded-lg"
+                                    onError={() => setImageError(prev => [...prev, product.id])}
                                 />
-                                <Chip
-                                    value={product.stock > 0 ? "En Stock" : "Sin Stock"}
-                                    color={product.stock > 0 ? "green" : "red"}
-                                    className="absolute top-2 right-2"
-                                />
-                            </div>
-                            <div className="mt-4 space-y-2">
+                            )}
+                            <Chip
+                                value={product.stock > 0 ? "En Stock" : "Sin Stock"}
+                                color={product.stock > 0 ? "green" : "red"}
+                                className="absolute top-2 right-2"
+                            />
+                        </CardHeader>
+                        <CardBody className="flex flex-row w-full items-start">
+                            <div className="mt-4 flex flex-col">
                                 <Typography variant="h6" color="blue-gray">
                                     {product.name}
                                 </Typography>
@@ -230,7 +332,7 @@ export function ProductManagement() {
                                 </Typography>
                             </div>
                         </CardBody>
-                        <CardFooter className="pt-0 flex justify-between">
+                        <CardFooter className="pt-0 flex w-full justify-between">
                             <IconButton
                                 variant="text"
                                 color="blue"
@@ -251,201 +353,65 @@ export function ProductManagement() {
             </div>
 
             {/* Diálogo de Crear Producto */}
-            <Dialog open={isCreateOpen} handler={() => setIsCreateOpen(false)} size="lg">
-                <DialogHeader className="flex items-center justify-between">
-                    Crear Nuevo Producto
-                    <IconButton
-                        variant="text"
-                        color="blue-gray"
-                        onClick={() => setIsCreateOpen(false)}
-                    >
-                        <XMarkIcon className="h-5 w-5" />
-                    </IconButton>
-                </DialogHeader>
-                <DialogBody divider className="grid gap-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <Input
-                            label="Nombre del Producto"
-                            name="name"
-                            value={formData.name}
-                            onChange={handleInputChange}
-                        />
-                        <Input
-                            label="Precio"
-                            name="price"
-                            type="number"
-                            value={formData.price}
-                            onChange={handleInputChange}
-                        />
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <Select
-                            label="Categoría"
-                            value={formData.category}
-                            onChange={(value) => handleInputChange({ target: { name: 'category', value } })}
-                        >
-                            <Option value="laptops">Laptops</Option>
-                            <Option value="smartphones">Smartphones</Option>
-                            <Option value="accessories">Accesorios</Option>
-                        </Select>
-                        <Input
-                            label="Stock"
-                            name="stock"
-                            type="number"
-                            value={formData.stock}
-                            onChange={handleInputChange}
-                        />
-                    </div>
-                    <Textarea
-                        label="Descripción"
-                        name="description"
-                        value={formData.description}
-                        onChange={handleInputChange}
-                    />
-                    <Typography variant="h6" color="blue-gray" className="mb-2">
-                        Especificaciones
-                    </Typography>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {Object.keys(formData.specifications).map((key) => (
-                            <Input
-                                key={key}
-                                label={key}
-                                value={formData.specifications[key]}
-                                onChange={(e) => handleSpecificationChange(key, e.target.value)}
-                            />
-                        ))}
-                    </div>
-                </DialogBody>
-                <DialogFooter>
-                    <Button
-                        variant="text"
-                        color="red"
-                        onClick={() => setIsCreateOpen(false)}
-                        className="mr-1"
-                    >
-                        Cancelar
-                    </Button>
-                    <Button onClick={handleCreate}>
-                        Crear Producto
-                    </Button>
-                </DialogFooter>
-            </Dialog>
+            <AddProductPopUp
+                isCreateOpen={isCreateOpen}
+                setIsCreateOpen={setIsCreateOpen}
+                formData={formData}
+                handleInputChange={handleInputChange}
+                handleCreate={handleCreate}
+                type={type}
+                setType={setType}
+                categories={categories}
+            />
 
             {/* Diálogo de Editar Producto */}
-            <Dialog open={isEditOpen} handler={() => setIsEditOpen(false)} size="lg">
-                <DialogHeader className="flex items-center justify-between">
-                    Editar Producto
-                    <IconButton
-                        variant="text"
-                        color="blue-gray"
-                        onClick={() => setIsEditOpen(false)}
-                    >
-                        <XMarkIcon className="h-5 w-5" />
-                    </IconButton>
-                </DialogHeader>
-                <DialogBody divider className="grid gap-4">
-                    {/* Mismo contenido que el diálogo de crear */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <Input
-                            label="Nombre del Producto"
-                            name="name"
-                            value={formData.name}
-                            onChange={handleInputChange}
-                        />
-                        <Input
-                            label="Precio"
-                            name="price"
-                            type="number"
-                            value={formData.price}
-                            onChange={handleInputChange}
-                        />
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <Select
-                            label="Categoría"
-                            value={formData.category}
-                            onChange={(value) => handleInputChange({ target: { name: 'category', value } })}
-                        >
-                            <Option value="laptops">Laptops</Option>
-                            <Option value="smartphones">Smartphones</Option>
-                            <Option value="accessories">Accesorios</Option>
-                        </Select>
-                        <Input
-                            label="Stock"
-                            name="stock"
-                            type="number"
-                            value={formData.stock}
-                            onChange={handleInputChange}
-                        />
-                    </div>
-                    <Textarea
-                        label="Descripción"
-                        name="description"
-                        value={formData.description}
-                        onChange={handleInputChange}
-                    />
-                    <Typography variant="h6" color="blue-gray" className="mb-2">
-                        Especificaciones
-                    </Typography>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {Object.keys(formData.specifications).map((key) => (
-                            <Input
-                                key={key}
-                                label={key}
-                                value={formData.specifications[key]}
-                                onChange={(e) => handleSpecificationChange(key, e.target.value)}
-                            />
-                        ))}
-                    </div>
-                </DialogBody>
-                <DialogFooter>
-                    <Button
-                        variant="text"
-                        color="red"
-                        onClick={() => setIsEditOpen(false)}
-                        className="mr-1"
-                    >
-                        Cancelar
-                    </Button>
-                    <Button onClick={handleEdit}>
-                        Guardar Cambios
-                    </Button>
-                </DialogFooter>
-            </Dialog>
+            {selectedProduct && (
+                <EditProductPopUp
+                    isEditOpen={isEditOpen}
+                    setIsEditOpen={setIsEditOpen}
+                    formData={formData}
+                    handleInputChange={handleInputChange}
+                    handleEdit={handleEdit}
+                    selectedProduct={selectedProduct}
+                    categories={categories}
+                />
+            )}
 
             {/* Diálogo de Eliminar Producto */}
-            <Dialog open={isDeleteOpen} handler={() => setIsDeleteOpen(false)}>
-                <DialogHeader className="flex items-center">
-                    <ExclamationTriangleIcon className="h-6 w-6 text-red-500 mr-2" />
-                    Confirmar Eliminación
-                </DialogHeader>
-                <DialogBody divider>
-                    ¿Estás seguro de que deseas eliminar el producto "{selectedProduct?.name}"?
-                    Esta acción no se puede deshacer.
-                </DialogBody>
-                <DialogFooter>
-                    <Button
-                        variant="text"
-                        color="blue-gray"
-                        onClick={() => setIsDeleteOpen(false)}
-                        className="mr-1"
-                    >
-                        Cancelar
-                    </Button>
-                    <Button variant="filled" color="red" onClick={handleDelete}>
-                        Eliminar
-                    </Button>
-                </DialogFooter>
-            </Dialog>
+            <DeleteProductPopUp
+                isDeleteOpen={isDeleteOpen}
+                setIsDeleteOpen={setIsDeleteOpen}
+                handleDelete={handleDelete}
+                selectedProduct={selectedProduct}
+            />
+
+            {/* Diálogo de Crear Categoría */}
+            <AddCategoryPopUp
+                isCategoryDialogOpen={isCategoryDialogOpen}
+                setIsCategoryDialogOpen={setIsCategoryDialogOpen}
+                newCategoryName={newCategoryName}
+                setNewCategoryName={setNewCategoryName}
+                newCategoryDescription={newCategoryDescription}
+                setNewCategoryDescription={setNewCategoryDescription}
+                handleCreateCategory={handleCreateCategory}
+            />
+
+            {/* Diálogo de Eliminar Categoría */}
+            <DeleteCategoryPopUp
+                isDeleteCategoryOpen={isDeleteCategoryOpen}
+                setIsDeleteCategoryOpen={setIsDeleteCategoryOpen}
+                handleDeleteCategory={handleDeleteCategory}
+                selectedCategory={selectedCategory}
+            />
 
             {/* Alerta de notificación */}
             {showAlert && (
                 <div className="fixed bottom-4 right-4 z-50">
                     <Alert
-                        color={alertData.type === 'success' ? "green" : "red"}
+                        color={alertData.type === "success" ? "green" : "red"}
                         className="max-w-screen-md"
                         icon={
-                            alertData.type === 'success' ? (
+                            alertData.type === "success" ? (
                                 <svg
                                     xmlns="http://www.w3.org/2000/svg"
                                     viewBox="0 0 24 24"
@@ -469,6 +435,6 @@ export function ProductManagement() {
             )}
         </div>
     );
-};
+}
 
 export default ProductManagement;

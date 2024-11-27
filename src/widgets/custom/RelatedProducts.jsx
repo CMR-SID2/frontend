@@ -1,7 +1,10 @@
 import { Button, Card, CardBody, CardFooter, CardHeader, Typography } from "@material-tailwind/react"
+import { useState } from "react";
 import { useNavigate } from "react-router-dom"
+import { ImagePlacehoderSkeleton } from "../skeleton";
 
 export function RelatedProducts({ relatedProducts }) {
+    const [imageError, setImageError] = useState([]);
     const navigate = useNavigate();
     return (
         <section className="mt-16">
@@ -17,11 +20,20 @@ export function RelatedProducts({ relatedProducts }) {
                             color="transparent"
                             className="m-0 rounded-none"
                         >
-                            <img
-                                src={relatedProduct.image}
-                                alt={relatedProduct.name}
-                                className="w-full h-48 object-cover"
-                            />
+                            {
+                                imageError && imageError.includes(relatedProduct.id) ? (
+
+                                    <div className="h-48 w-full">
+                                        <ImagePlacehoderSkeleton />
+                                    </div>
+                                ) :
+                                    <img
+                                        src={relatedProduct.images.front}
+                                        alt={relatedProduct.name}
+                                        className="w-full h-48 object-cover"
+                                        onError={() => setImageError(prev => [...prev, relatedProduct.id])}
+                                    />
+                            }
                         </CardHeader>
                         <CardBody>
                             <Typography variant="h5" color="blue-gray">

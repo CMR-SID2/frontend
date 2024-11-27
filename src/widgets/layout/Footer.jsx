@@ -44,7 +44,7 @@ export function Footer() {
                             <br />
                             Teléfono: (123) 456-7890
                             <br />
-                            Dirección: Calle Tecnología 123
+                            Dirección: Calle 5 # 123
                         </Typography>
                     </div>
                 </div>

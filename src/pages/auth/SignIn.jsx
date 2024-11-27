@@ -2,17 +2,41 @@ import { Input, Checkbox, Button, Typography } from "@material-tailwind/react";
 import { Link } from "react-router-dom";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import apiClient from "../../services/ApiClient";
+import { signInUser } from "../../services";
+import { useDispatch, useSelector } from "react-redux";
+import { login } from "../../redux/features/userSlice";
 
 export function SignIn() {
     const navigate = useNavigate();
 
-    const [email, setEmail] = useState("");
+    const [checked, setChecked] = useState(false);
+    const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
+    const [error, setError] = useState(null);
+
+    const dispatch = useDispatch();
+
+    // const handleLogout = () => {
+    //     dispatch(logout());
+    // };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        localStorage.setItem("token", "123456");
-        navigate("/products");
+        sessionStorage.removeItem("token");
+
+        try {
+            const response = await signInUser({ username, password });
+            console.log(response);
+            dispatch(login(response.data.userDTO));
+
+            sessionStorage.setItem("token", response.data.token);
+            sessionStorage.setItem("roles", response.data.userDTO.rolesNames);
+            console.log("session roles", sessionStorage.getItem("roles"));
+            navigate("/products");
+        } catch (error) {
+            setError("Error al iniciar sesión");
+        }
     };
 
     return (
@@ -27,7 +51,7 @@ export function SignIn() {
                         color="blue-gray"
                         className="text-lg font-normal"
                     >
-                        Enter your email and password to Sign In.
+                        Enter your username and password to Sign In.
                     </Typography>
                 </div>
                 <form
@@ -40,7 +64,7 @@ export function SignIn() {
                             color="blue-gray"
                             className="-mb-3 font-medium"
                         >
-                            Your email
+                            Your username
                         </Typography>
                         <Input
                             size="lg"
@@ -49,8 +73,8 @@ export function SignIn() {
                             labelProps={{
                                 className: "before:content-none after:content-none",
                             }}
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
+                            value={username}
+                            onChange={(e) => setUsername(e.target.value)}
                         />
                         <Typography
                             variant="h6"
@@ -70,8 +94,17 @@ export function SignIn() {
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
                         />
+                        {error &&
+                            <Typography
+                                variant="h6"
+                                color="red"
+                                className="mb-2 font-medium"
+                            >
+                                {error}
+                            </Typography>
+                        }
                     </div>
-                    <Checkbox
+                    <Checkbox checked={checked} onChange={() => setChecked(checked => !checked)}
                         label={
                             <Typography
                                 variant="h6"
@@ -87,7 +120,7 @@ export function SignIn() {
                         containerProps={{ className: "-ml-2.5" }}
                     />
 
-                    <Button className="mt-6" fullWidth color="blue" type="submit">
+                    <Button className="mt-6" fullWidth color="blue" type="submit" disabled={!checked}>
                         {/* {1>2 ? "Iniciando..." : "Entrar"} */}
                         Entrar
                     </Button>
