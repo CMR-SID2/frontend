@@ -5,7 +5,7 @@ import { AppNavbar } from "../widgets/layout";
 
 export function HomeLayout() {
     return (
-        <div className="h-screen w-screen flex flex-col items-center">
+        <div className="h-screen w-full">
             <AppNavbar />
             <Routes>
                 {routes.map(

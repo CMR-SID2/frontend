@@ -8,19 +8,19 @@ export function Homepage() {
     return (
         <div className="min-h-screen w-full bg-gray-50 text-gray-800">
             {/* Hero Section */}
-            <section className="relative bg-gradient-to-r from-blue-700 to-purple-800 text-white text-center py-32">
-                <div className="container mx-auto px-4">
+            <div className="w-full bg-gradient-to-r from-blue-700 to-purple-800 text-white text-center py-32">
+                <div className="">
                     <Typography variant="h1" color="white" className="font-extrabold tracking-tight">
                         Bienvenido a <span className="text-blue-300">TechStore</span>
                     </Typography>
                     <Typography variant="lead" color="white" className="mt-4 font-light max-w-xl mx-auto">
                         Explora la mejor tecnología y descubre ofertas exclusivas para ti.
                     </Typography>
-                    <Button color="light-blue" size="lg" className="mt-8 font-semibold" ripple="light" onClick={() => navigate("/products")}>
+                    <Button color="light-blue" size="lg" className="mt-8 font-semibold" onClick={() => navigate("/products")}>
                         Ver Productos
                     </Button>
                 </div>
-            </section>
+            </div>
 
             {/* Características de la Tienda */}
             <section className="py-16 px-4 md:px-8 bg-white">

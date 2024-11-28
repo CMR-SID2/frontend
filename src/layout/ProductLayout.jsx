@@ -4,7 +4,7 @@ import { AppNavbar } from "../widgets/layout";
 
 export function ProductLayout() {
     return (
-        <div className="h-screen w-screen flex flex-col items-center">
+        <div className="h-screen w-full flex flex-col items-center">
             <AppNavbar />
 
             <Routes>

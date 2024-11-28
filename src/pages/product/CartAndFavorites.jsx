@@ -1,6 +1,5 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-    Navbar,
     Typography,
     Button,
     IconButton,
@@ -12,16 +11,18 @@ import {
     DialogHeader,
     DialogBody,
     DialogFooter,
-    Chip,
-    Tabs,
-    TabsHeader,
-    TabsBody,
-    Tab,
-    TabPanel,
-    Tooltip
+    Tooltip,
+    Select,
+    Option,
+    Textarea,
+    MenuItem,
+    MenuList,
+    MenuHandler,
+    Menu
 } from "@material-tailwind/react";
+
+
 import {
-    ShoppingCartIcon,
     HeartIcon,
     TrashIcon,
     PlusIcon,
@@ -29,318 +30,457 @@ import {
     XMarkIcon,
     UserCircleIcon,
     ShoppingBagIcon,
-    Bars3Icon
+    Bars3Icon,
+    ChevronDownIcon
 } from "@heroicons/react/24/outline";
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
+import { excludedProperties } from '../../data';
+import { ImagePlacehoderSkeleton } from '../../widgets/skeleton';
+import { removeItem, updateQuantity } from '../../redux/features/cartSlice';
+import { getContracts } from '../../services/ContractServices';
+import { MessageAlert } from '../../widgets/alerts';
+import { createDeliveryCertificate } from '../../services/DeliveryCertificateServices';
+import { ArrowRightOnRectangleIcon } from '@heroicons/react/24/outline';
+import { logout } from '../../redux/features/userSlice';
 
 export function CartAndFavorites() {
-    const [activeTab, setActiveTab] = useState("carrito");
     const [isCheckoutDialogOpen, setIsCheckoutDialogOpen] = useState(false);
+    const [imageError, setImageError] = useState([]);
+    const [contracts, setContracts] = useState([]);
+    const [alertData, setAlertData] = useState({ type: '', message: '' });
+    const [showAlert, setShowAlert] = useState(false);
 
-    // Estado para los productos del carrito
-    const [cartItems, setCartItems] = useState([
-        {
-            id: 1,
-            name: "Laptop Ultra Pro",
-            price: 1299.99,
-            image: "https://cdn.thewirecutter.com/wp-content/media/2023/07/4kmonitors-2048px-9794.jpg",
-            quantity: 1,
-            specifications: {
-                Procesador: "Intel Core i7",
-                RAM: "16 GB"
-            }
-        },
-        {
-            id: 2,
-            name: "Mouse Gaming Pro",
-            price: 59.99,
-            image: "https://media.gq.com.mx/photos/61e70ca25def32c5619cef06/16:9/w_1280,c_limit/Lenovo%20Yoga%20Slim%207%20Pro.jpg",
-            quantity: 2,
-            specifications: {
-                DPI: "16000",
-                "Botones programables": "8"
+    const dispatch = useDispatch();
+    const user = useSelector((state) => state.user.value);
+    const cart = useSelector((state) => state.cart.items);
+
+    console.log("user ", user);
+    console.log("cart ", cart);
+
+    const navigate = useNavigate();
+
+    const handleLogout = () => {
+        sessionStorage.removeItem("token");
+        sessionStorage.removeItem("roles");
+        dispatch(logout());
+        navigate('/');
+    };
+
+    // UseEffect to fetch contracts
+
+    useEffect(() => {
+        async function fetchContracts() {
+            const response = await getContracts();
+
+            if (response.status === 200) {
+                if (!user.rolesNames.includes("ADMIN")) {
+                    setContracts(response.data.filter((contract) => contract.departmentId === user.departmentId));
+                } else {
+                    setContracts(response.data);
+                }
+            } else {
+                showNotification("error", "Error al cargar los contratos");
             }
         }
-    ]);
+        fetchContracts();
+    }, [user]);
 
-    // Estado para los productos favoritos
-    const [favoriteItems, setFavoriteItems] = useState([
-        {
-            id: 3,
-            name: "Laptop Gaming X",
-            price: 1499.99,
-            image: "https://multipoint.com.ar/Image/0/750_750-d143.jpg",
-            specifications: {
-                Procesador: "Intel Core i9",
-                RAM: "32 GB"
-            },
-            stock: true
-        },
-        {
-            id: 4,
-            name: "Teclado Mecánico RGB",
-            price: 129.99,
-            image: "https://tienda.claro.com.co/wcsstore/Claro/images/catalog/equipos/646x1000/70056838.jpg",
-            specifications: {
-                Switches: "Cherry MX Blue",
-                Formato: "TKL"
-            },
-            stock: false
+    const updateStock = (id, change) => {
+        console.log(id, change);
+        const quantity = cart.find(item => item.id === id).quantity + change
+        if (quantity < 1) {
+            removeFromCart(id);
+            return;
         }
-    ]);
-
-    // Funciones para el carrito
-    const updateQuantity = (id, change) => {
-        setCartItems(items =>
-            items.map(item =>
-                item.id === id
-                    ? { ...item, quantity: Math.max(1, item.quantity + change) }
-                    : item
-            )
-        );
+        dispatch(updateQuantity({ id, quantity }));
     };
 
     const removeFromCart = (id) => {
-        setCartItems(items => items.filter(item => item.id !== id));
+        dispatch(removeItem(cart.find(item => item.id === id)));
     };
 
     const calculateTotal = () => {
-        return cartItems.reduce((total, item) => total + (item.price * item.quantity), 0);
+        return cart.reduce((total, item) => total + (item.price * item.quantity), 0);
     };
 
-    // Funciones para favoritos
-    const removeFromFavorites = (id) => {
-        setFavoriteItems(items => items.filter(item => item.id !== id));
+    const showNotification = (type, message) => {
+        setAlertData({ type, message });
+        setShowAlert(true);
+        setTimeout(() => setShowAlert(false), 3000);
     };
 
-    const moveToCart = (item) => {
-        removeFromFavorites(item.id);
-        setCartItems(current => [...current, { ...item, quantity: 1 }]);
+    // --------------------------- Delivery States ---------------------------
+
+    const [selectedProduct, setSelectedProduct] = useState(null);
+    const [deliveryForm, setDeliveryForm] = useState({
+        notes: '',
+        quantity: 1,
+        contractId: '',
+    });
+
+    const handleDeliveryInputChange = (e) => {
+        const { name, value } = e.target;
+        setDeliveryForm(prev => ({
+            ...prev,
+            [name]: value
+        }));
     };
+
+    const handleProductSelection = (productId) => {
+        const product = cart.find(item => item.id === productId);
+        setSelectedProduct(product);
+        setDeliveryForm(prev => ({
+            ...prev,
+            quantity: product.quantity,
+        }));
+    };
+
+    const handleCreateDeliveryCertificate = async () => {
+        if (!selectedProduct || !deliveryForm.contractId || !deliveryForm.notes) {
+            showNotification('error', 'Por favor complete todos los campos requeridos');
+            return;
+        }
+
+        try {
+            const certificateData = {
+                notes: deliveryForm.notes,
+                quantity: parseInt(deliveryForm.quantity),
+                equipmentId: selectedProduct.id,
+                contractId: parseInt(deliveryForm.contractId),
+                deliveryDate: new Date().getTime(),
+            };
+
+
+            const response = await createDeliveryCertificate(certificateData);
+
+            if (response.status !== 200) {
+                showNotification('error', 'Error al crear el certificado de entrega');
+                return;
+            }
+
+            removeFromCart(selectedProduct.id);
+            showNotification('success', 'Certificado de entrega creado exitosamente');
+            setIsCheckoutDialogOpen(false);
+
+            // Resetear el formulario
+            setSelectedProduct(null);
+            setDeliveryForm({
+                notes: '',
+                quantity: 1,
+                contractId: '',
+            });
+        } catch (error) {
+            console.log(error);
+            showNotification('error', 'Error al crear el certificado de entrega');
+        }
+    };
+
+    const renderCheckoutDialog = () => (
+        <Dialog
+            open={isCheckoutDialogOpen}
+            handler={() => setIsCheckoutDialogOpen(false)}
+            className="max-w-md mx-auto"
+        >
+            <DialogHeader className="text-2xl font-bold text-gray-800">
+                Crear Certificado de Entrega
+            </DialogHeader>
+            <DialogBody divider className="grid gap-4 p-6">
+                <div className="space-y-4">
+                    <div className="mb-4 space-y-4">
+                        <Typography variant="small" color="blue-gray" className="font-medium mb-2">
+                            Seleccionar Producto
+                        </Typography>
+                        <Select
+                            label="Contrato"
+                            value={String(deliveryForm.contractId)}
+                            onChange={(id) => handleDeliveryInputChange({ target: { name: 'contractId', value: String(id) } })}
+                        >
+                            {contracts.map((contract) => (
+                                <Option key={contract.id} value={String(contract.id)}>
+                                    {contract.contractNumber}
+                                </Option>
+                            ))}
+                        </Select>
+                        <Select
+                            label="Producto"
+                            value={selectedProduct?.id || ''}
+                            onChange={(id) => handleProductSelection(id)}
+                        >
+                            {cart.map((item) => (
+                                <Option key={item.id} value={item.id}>
+                                    {item.name} - Cantidad: {item.quantity}
+                                </Option>
+                            ))}
+                        </Select>
+                    </div>
+
+                    {selectedProduct && (
+                        <>
+                            <Input
+                                type="number"
+                                label="Cantidad a entregar"
+                                name="quantity"
+                                value={deliveryForm.quantity}
+                                onChange={handleDeliveryInputChange}
+                                min={1}
+                                max={selectedProduct.quantity}
+                            />
+
+                            <Textarea
+                                label="Notas de entrega"
+                                name="notes"
+                                value={deliveryForm.notes}
+                                onChange={handleDeliveryInputChange}
+                                rows={4}
+                            />
+                        </>
+                    )}
+                </div>
+            </DialogBody>
+            <DialogFooter className="p-4 space-x-2">
+                <Button
+                    variant="text"
+                    color="red"
+                    onClick={() => {
+                        setIsCheckoutDialogOpen(false);
+                        setSelectedProduct(null);
+                        setDeliveryForm({
+                            notes: '',
+                            quantity: 1,
+                            contractId: '',
+                        });
+                    }}
+                    className="hover:bg-red-50"
+                >
+                    Cancelar
+                </Button>
+                <Button
+                    onClick={handleCreateDeliveryCertificate}
+                    disabled={!selectedProduct || !deliveryForm.contractId || !deliveryForm.notes}
+                    className="bg-blue-600 hover:bg-blue-700"
+                >
+                    Crear Certificado
+                </Button>
+            </DialogFooter>
+        </Dialog>
+    );
 
 
     return (
-        <div className="h-full w-full bg-gray-50">
-            {/* Main Content */}
+        <div className="min-h-screen w-full bg-gray-50">
             <main className="container mx-auto px-4 py-8">
-                {/* Breadcrumbs */}
-                <Breadcrumbs className="bg-transparent">
-                    <Link to="/">
-                        Inicio
-                    </Link>
-                    <Link to="">
-                        Mi Cuenta
-                    </Link>
+                {/* Header Section */}
+                <div className="max-w-6xl mx-auto mb-8">
+                    <div className="flex items-center justify-between mb-6">
+                        <Breadcrumbs className="bg-transparent p-0">
+                            <Link to="/" className="text-blue-600 hover:text-blue-800 transition-colors">
+                                Inicio
+                            </Link>
+                            <Link to="" className="text-gray-600">
+                                Carrito de Compras
+                            </Link>
+                        </Breadcrumbs>
 
-                </Breadcrumbs>
+                        <Menu placement="bottom-end">
+                            <MenuHandler>
+                                <Button
+                                    variant="text"
+                                    className="flex items-center gap-2 normal-case text-blue-gray-800"
+                                >
+                                    <UserCircleIcon className="h-5 w-5" />
+                                    <Typography className="font-medium">
+                                        {user?.name || 'Usuario'}
+                                    </Typography>
+                                    <ChevronDownIcon className="h-4 w-4" />
+                                </Button>
+                            </MenuHandler>
+                            <MenuList>
+                                <MenuItem
+                                    onClick={handleLogout}
+                                    className="flex items-center gap-2 text-red-500 hover:bg-red-50/80"
+                                >
+                                    <ArrowRightOnRectangleIcon className="h-4 w-4" />
+                                    Cerrar Sesión
+                                </MenuItem>
+                            </MenuList>
+                        </Menu>
+                    </div>
 
-                {/* Tabs Section */}
-                <div className="mt-8">
-                    <Tabs value={activeTab} className="max-w-[40rem] mx-auto">
-                        <TabsHeader>
-                            <Tab value="carrito" onClick={() => setActiveTab("carrito")}>
-                                <div className="flex items-center gap-2">
-                                    <ShoppingBagIcon className="w-5 h-5" />
-                                    Carrito ({cartItems.length})
-                                </div>
-                            </Tab>
-                            <Tab value="favoritos" onClick={() => setActiveTab("favoritos")}>
-                                <div className="flex items-center gap-2">
-                                    <HeartIcon className="w-5 h-5" />
-                                    Favoritos ({favoriteItems.length})
-                                </div>
-                            </Tab>
-                        </TabsHeader>
+                    <div className="flex items-center justify-between">
+                        <Typography variant="h3" className="text-gray-800 font-bold">
+                            Mi Carrito
+                        </Typography>
+                        <div className="bg-blue-50 px-4 py-2 rounded-full">
+                            <Typography className="text-blue-800 font-medium">
+                                {cart.length} {cart.length === 1 ? 'Producto' : 'Productos'}
+                            </Typography>
+                        </div>
+                    </div>
+                </div>
 
-                        <TabsBody>
-                            <TabPanel value="carrito">
-                                {cartItems.length > 0 ? (
-                                    <div className="space-y-6">
-                                        {cartItems.map((item) => (
-                                            <Card key={item.id} className="p-4">
-                                                <CardBody className="flex flex-col md:flex-row gap-4">
+                <div className="max-w-6xl mx-auto">
+                    {cart && cart.length > 0 ? (
+                        <div className="flex flex-col lg:flex-row gap-8">
+                            {/* Cart Items Section */}
+                            <div className="flex-grow space-y-4">
+                                {cart.map((item) => (
+                                    <Card key={item.id} className="hover:shadow-lg transition-shadow duration-300">
+                                        <CardBody className="flex flex-col md:flex-row items-center gap-6 p-6">
+                                            {/* Imagen */}
+                                            <div className="w-full md:w-48 min-w-[200px]">
+                                                {(imageError && imageError.includes(item.id)) ? (
+                                                    <ImagePlacehoderSkeleton />
+                                                ) : (
                                                     <img
-                                                        src={item.image}
+                                                        src={item.images.front}
                                                         alt={item.name}
-                                                        className="w-full md:w-48 h-48 object-cover rounded-lg"
+                                                        className="w-full h-48 object-cover rounded-xl shadow-sm"
+                                                        onError={() => setImageError(prev => [...prev, item.id])}
                                                     />
-                                                    <div className="flex-grow space-y-4">
-                                                        <div className="flex justify-between items-start">
-                                                            <div>
-                                                                <Typography variant="h6" color="blue-gray">
-                                                                    {item.name}
-                                                                </Typography>
-                                                                <Typography variant="small" color="gray">
-                                                                    {Object.entries(item.specifications).map(([key, value]) => (
-                                                                        `${key}: ${value}`
-                                                                    )).join(' | ')}
-                                                                </Typography>
-                                                            </div>
-                                                            <IconButton
-                                                                variant="text"
-                                                                color="red"
-                                                                onClick={() => removeFromCart(item.id)}
-                                                            >
-                                                                <TrashIcon className="h-5 w-5" />
-                                                            </IconButton>
-                                                        </div>
-                                                        <div className="flex justify-between items-center">
-                                                            <div className="flex items-center gap-2">
-                                                                <IconButton
-                                                                    variant="outlined"
-                                                                    size="sm"
-                                                                    onClick={() => updateQuantity(item.id, -1)}
-                                                                >
-                                                                    <MinusIcon className="h-4 w-4" />
-                                                                </IconButton>
-                                                                <Typography className="w-12 text-center">
-                                                                    {item.quantity}
-                                                                </Typography>
-                                                                <IconButton
-                                                                    variant="outlined"
-                                                                    size="sm"
-                                                                    onClick={() => updateQuantity(item.id, 1)}
-                                                                >
-                                                                    <PlusIcon className="h-4 w-4" />
-                                                                </IconButton>
-                                                            </div>
-                                                            <Typography variant="h6" color="blue-gray">
-                                                                ${(item.price * item.quantity).toFixed(2)}
-                                                            </Typography>
+                                                )}
+                                            </div>
+
+                                            {/* Product Info */}
+                                            <div className="flex-grow">
+                                                <div className="flex justify-between items-start">
+                                                    <div className="space-y-3">
+                                                        <Typography variant="h5" className="text-gray-900 font-semibold">
+                                                            {item.name}
+                                                        </Typography>
+                                                        <div className="grid md:grid-cols-2 gap-x-8 gap-y-2">
+                                                            {Object.entries(item)
+                                                                .filter(([key]) => ![...excludedProperties, "quantity"].includes(key))
+                                                                .map(([key, value]) => (
+                                                                    <div key={key} className="flex items-center gap-2">
+                                                                        <Typography variant="small" className="text-gray-600 font-medium">
+                                                                            {key.charAt(0).toUpperCase() + key.slice(1)}:
+                                                                        </Typography>
+                                                                        <Typography variant="small" className="text-gray-800">
+                                                                            {Array.isArray(value) ? value.join(', ') : value || 'N/A'}
+                                                                        </Typography>
+                                                                    </div>
+                                                                ))}
                                                         </div>
                                                     </div>
-                                                </CardBody>
-                                            </Card>
-                                        ))}
 
-                                        {/* Total y Checkout */}
-                                        <Card className="p-4">
-                                            <CardBody>
+                                                    <Tooltip content="Eliminar">
+                                                        <IconButton
+                                                            variant="text"
+                                                            color="red"
+                                                            onClick={() => removeFromCart(item.id)}
+                                                            className="hover:bg-red-50"
+                                                        >
+                                                            <TrashIcon className="h-5 w-5" />
+                                                        </IconButton>
+                                                    </Tooltip>
+                                                </div>
+
+                                                {/* Quantity and Price */}
+                                                <div className="flex justify-between items-center mt-4 pt-4 border-t border-gray-100">
+                                                    <div className="flex items-center gap-2">
+                                                        <IconButton
+                                                            variant="outlined"
+                                                            size="sm"
+                                                            onClick={() => updateStock(item.id, -1)}
+                                                            className="rounded-full"
+                                                        >
+                                                            <MinusIcon className="h-4 w-4" />
+                                                        </IconButton>
+                                                        <Typography className="w-12 text-center font-medium">
+                                                            {item.quantity}
+                                                        </Typography>
+                                                        <IconButton
+                                                            variant="outlined"
+                                                            size="sm"
+                                                            disabled={item.quantity >= item.stock}
+                                                            onClick={() => updateStock(item.id, 1)}
+                                                            className="rounded-full"
+                                                        >
+                                                            <PlusIcon className="h-4 w-4" />
+                                                        </IconButton>
+                                                    </div>
+                                                    <Typography variant="h6" className="text-blue-600 font-bold">
+                                                        ${(item.price * item.quantity).toFixed(2)}
+                                                    </Typography>
+                                                </div>
+                                            </div>
+                                        </CardBody>
+                                    </Card>
+                                ))}
+                            </div>
+
+                            {/* Order Summary Card */}
+                            <div className="lg:w-80">
+                                <Card className="sticky top-4">
+                                    <CardBody className="p-6 space-y-6">
+                                        <Typography variant="h6" className="text-gray-700 font-bold">
+                                            Resumen del Pedido
+                                        </Typography>
+
+                                        <div className="space-y-3">
+                                            <div className="flex justify-between text-gray-600">
+                                                <span>Subtotal</span>
+                                                <span>${calculateTotal().toFixed(2)}</span>
+                                            </div>
+                                            <div className="flex justify-between text-gray-600">
+                                                <span>Envío</span>
+                                                <span>Gratis</span>
+                                            </div>
+                                            <div className="pt-3 border-t border-gray-200">
                                                 <div className="flex justify-between items-center">
                                                     <Typography variant="h6">Total</Typography>
-                                                    <Typography variant="h4" color="blue">
+                                                    <Typography variant="h4" className="text-blue-600 font-bold">
                                                         ${calculateTotal().toFixed(2)}
                                                     </Typography>
                                                 </div>
-                                                <Button
-                                                    className="mt-4 w-full"
-                                                    size="lg"
-                                                    onClick={() => setIsCheckoutDialogOpen(true)}
-                                                >
-                                                    Proceder al Pago
-                                                </Button>
-                                            </CardBody>
-                                        </Card>
-                                    </div>
-                                ) : (
-                                    <div className="text-center py-8">
-                                        <ShoppingBagIcon className="h-16 w-16 mx-auto text-blue-gray-300" />
-                                        <Typography variant="h6" className="mt-4">
-                                            Tu carrito está vacío
-                                        </Typography>
-                                        <Button className="mt-4" variant="outlined">
-                                            Continuar Comprando
-                                        </Button>
-                                    </div>
-                                )}
-                            </TabPanel>
+                                            </div>
+                                        </div>
 
-                            <TabPanel value="favoritos">
-                                {favoriteItems.length > 0 ? (
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        {favoriteItems.map((item) => (
-                                            <Card key={item.id} className="p-4">
-                                                <CardBody>
-                                                    <div className="relative">
-                                                        <img
-                                                            src={item.image}
-                                                            alt={item.name}
-                                                            className="w-full h-48 object-cover rounded-lg"
-                                                        />
-                                                        <Chip
-                                                            value={item.stock ? "En Stock" : "Sin Stock"}
-                                                            color={item.stock ? "green" : "red"}
-                                                            className="absolute top-2 right-2"
-                                                        />
-                                                    </div>
-                                                    <div className="mt-4 space-y-2">
-                                                        <Typography variant="h6" color="blue-gray">
-                                                            {item.name}
-                                                        </Typography>
-                                                        <Typography variant="small" color="gray">
-                                                            {Object.entries(item.specifications).map(([key, value]) => (
-                                                                `${key}: ${value}`
-                                                            )).join(' | ')}
-                                                        </Typography>
-                                                        <Typography variant="h6" color="blue">
-                                                            ${item.price}
-                                                        </Typography>
-                                                        <div className="flex gap-2 mt-4">
-                                                            <Button
-                                                                variant="outlined"
-                                                                className="flex-1"
-                                                                onClick={() => moveToCart(item)}
-                                                                disabled={!item.stock}
-                                                            >
-                                                                Añadir al Carrito
-                                                            </Button>
-                                                            <IconButton
-                                                                variant="text"
-                                                                color="red"
-                                                                onClick={() => removeFromFavorites(item.id)}
-                                                            >
-                                                                <TrashIcon className="h-5 w-5" />
-                                                            </IconButton>
-                                                        </div>
-                                                    </div>
-                                                </CardBody>
-                                            </Card>
-                                        ))}
-                                    </div>
-                                ) : (
-                                    <div className="text-center py-8">
-                                        <HeartIcon className="h-16 w-16 mx-auto text-blue-gray-300" />
-                                        <Typography variant="h6" className="mt-4">
-                                            No tienes productos favoritos
-                                        </Typography>
-                                        <Button className="mt-4" variant="outlined">
-                                            Explorar Productos
+                                        <Button
+                                            size="lg"
+                                            onClick={() => setIsCheckoutDialogOpen(true)}
+                                            className="w-full bg-blue-600 hover:bg-blue-700 transition-colors py-3 text-lg"
+                                        >
+                                            Proceder al Pago
                                         </Button>
-                                    </div>
-                                )}
-                            </TabPanel>
-                        </TabsBody>
-                    </Tabs>
+
+                                        <div className="text-center">
+                                            <Link to="/" className="text-blue-600 hover:text-blue-800 text-sm">
+                                                Continuar comprando
+                                            </Link>
+                                        </div>
+                                    </CardBody>
+                                </Card>
+                            </div>
+                        </div>
+                    ) : (
+                        <Card className="max-w-2xl mx-auto">
+                            <CardBody className="text-center py-16">
+                                <ShoppingBagIcon className="h-20 w-20 mx-auto text-blue-gray-300 mb-6" />
+                                <Typography variant="h4" className="text-gray-700 mb-4">
+                                    Tu carrito está vacío
+                                </Typography>
+                                <Typography className="text-gray-500 mb-8">
+                                    Parece que aún no has añadido ningún producto a tu carrito.
+                                </Typography>
+                                <Link to="/">
+                                    <Button
+                                        variant="outlined"
+                                        className="px-8 py-2 text-blue-600 border-blue-600 hover:bg-blue-50"
+                                    >
+                                        Explorar Productos
+                                    </Button>
+                                </Link>
+                            </CardBody>
+                        </Card>
+                    )}
                 </div>
             </main>
 
-            {/* Diálogo de Checkout */}
-            <Dialog open={isCheckoutDialogOpen} handler={() => setIsCheckoutDialogOpen(false)}>
-                <DialogHeader>Finalizar Compra</DialogHeader>
-                <DialogBody divider className="grid gap-4">
-                    <Input label="Nombre Completo" />
-                    <Input label="Correo Electrónico" />
-                    <Input label="Dirección de Envío" />
-                    <Input label="Número de Tarjeta" />
-                    <div className="grid grid-cols-2 gap-4">
-                        <Input label="Fecha de Expiración" />
-                        <Input label="CVV" />
-                    </div>
-                </DialogBody>
-                <DialogFooter>
-                    <Button
-                        variant="text"
-                        color="red"
-                        onClick={() => setIsCheckoutDialogOpen(false)}
-                        className="mr-1"
-                    >
-                        Cancelar
-                    </Button>
-                    <Button onClick={() => setIsCheckoutDialogOpen(false)}>
-                        Confirmar Pedido
-                    </Button>
-                </DialogFooter>
-            </Dialog>
+            {/* Checkout Dialog */}
+            {renderCheckoutDialog()}
+            <MessageAlert alertData={alertData} showAlert={showAlert} />
         </div>
     );
 }

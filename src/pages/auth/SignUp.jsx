@@ -1,49 +1,190 @@
 import {
     Tabs,
     TabsHeader,
-    TabsBody,
     Tab,
-    TabPanel,
     Checkbox,
+    Stepper,
+    Step,
     Button,
     Typography,
 } from "@material-tailwind/react";
-import { Link, useNavigate, } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useState } from "react";
-import { TextInputLabel } from "../../widgets/textInputs";
+import {
+    CompanyForm,
+    CompanySelect,
+    DepartmentForm,
+    DepartmentSelect,
+    UserForm,
+} from "../../widgets/custom";
+import { createCompany, createDepartment, createUser } from "../../services";
+import { ErrorBlock } from "../../widgets/blocks";
 
+function getSteps() {
+    return ["Company Information", "Department Information", "User Information"];
+}
+
+function getStepContent(stepIndex, props) {
+    switch (stepIndex) {
+        case 0:
+            return <CompanyForm {...props} />;
+        case 1:
+            return <DepartmentForm {...props} />;
+        case 2:
+            return <UserForm {...props} />;
+        default:
+            return "Unknown stepIndex";
+    }
+}
 
 export function SignUp() {
-
     //React hoooks
     const navigate = useNavigate();
 
     //Info status
+    const [isWorker, setIsWorker] = useState(true);
     const [error, setError] = useState(null);
 
     // User States
-    const [isFreelancer, setIsFreelancer] = useState(true);
-    const [first_name, setFirstName] = useState("");
-    const [last_name, setLastName] = useState("");
     const [username, setUsername] = useState("");
+    const [password, setPassword] = useState("");
     const [email, setEmail] = useState("");
-    const [phone, setPhone] = useState("");
 
     // Company States
 
-    const [companyTaxId, setCompanyTaxId] = useState("");
+    const [nit, setNit] = useState("");
     const [companyName, setCompanyName] = useState("");
-    const [city, setCity] = useState("");
+    const [industry, setIndustry] = useState("");
     const [address, setAddress] = useState("");
     const [companyTelephone, setCompanyTelephone] = useState("");
-    const [password, setPassword] = useState("");
+    const [companyEmail, setCompanyEmail] = useState("");
     const [country, setCountry] = useState("");
-    const [companyEmail, setCompnayEmail] = useState("");
+    const [state, setState] = useState("");
+
+    // Department States
+
+    const [departmentName, setDepartmentName] = useState("");
+    const [departmentDescription, setDepartmentDescription] = useState("");
+
+    // Company Select
+    const [selectedCompany, setSelectedCompany] = useState(null);
+
+    // Department Select
+    const [selectedDepartment, setSelectedDepartment] = useState(null);
+
+    // Stepper
+
+    const [activeStep, setActiveStep] = useState(0);
+    const steps = getSteps();
+
+    const handleNext = () => {
+        setActiveStep((prevActiveStep) => prevActiveStep + 1);
+    };
+
+    const handleBack = () => {
+        setActiveStep((prevActiveStep) => prevActiveStep - 1);
+    };
+
+    const handleReset = () => {
+        setActiveStep(0);
+    };
+
+    const stepProps = {
+        nit,
+        setNit,
+        companyName,
+        setCompanyName,
+        industry,
+        setIndustry,
+        address,
+        setAddress,
+        companyTelephone,
+        setCompanyTelephone,
+        companyEmail,
+        setCompanyEmail,
+        country,
+        setCountry,
+        state,
+        setState,
+        departmentName,
+        setDepartmentName,
+        departmentDescription,
+        setDepartmentDescription,
+        username,
+        setUsername,
+        email,
+        setEmail,
+        password,
+        setPassword,
+    };
+
+    // -----------------------------------------------------------
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-
+        if (isWorker) {
+            const body = {
+                username: username,
+                password: password,
+                email: email,
+                companyId: selectedCompany.id,
+                departmentId: selectedDepartment.id,
+                rolesNames: ["WORKER"],
+            };
+            try {
+                const response = await createUser(body);
+                if (response.status === 200) {
+                    navigate("/auth/sign-in");
+                }
+            } catch (error) {
+                setError(error.message);
+            }
+        } else {
+            const companyBody = {
+                nit: nit,
+                name: companyName,
+                industry: industry,
+                address: address,
+                phone: companyTelephone,
+                email: companyEmail,
+                country: country,
+                state: state,
+            };
+            try {
+                const responseCompany = await createCompany(companyBody);
+                if (responseCompany.status === 200) {
+                    setSelectedCompany(responseCompany.data);
+                }
+                const departmentBody = {
+                    name: departmentName,
+                    description: departmentDescription,
+                    companyId: responseCompany.data.id,
+                };
+                const responseDepartment = await createDepartment(departmentBody);
+                if (responseDepartment.status === 200) {
+                    setSelectedDepartment(responseDepartment.data);
+                }
+                const userBody = {
+                    username: username,
+                    password: password,
+                    email: email,
+                    companyId: responseCompany.data.id,
+                    departmentId: responseDepartment.data.id,
+                    rolesNames: ["BUSINESS_MANAGER"],
+                };
+                const responseUser = await createUser(userBody);
+                if (responseUser.status === 200) {
+                    navigate("/auth/sign-in");
+                }
+            } catch (error) {
+                setError(error.message);
+            }
+        }
     };
+
+    if (error) {
+        return <ErrorBlock error={error} />;
+    }
 
     return (
         <section className="p-8 flex w-full h-full">
@@ -62,21 +203,17 @@ export function SignUp() {
                         How do you want to register?
                     </Typography>
                 </div>
-                <Tabs value="Freelancer">
+                <Tabs value="worker" className="w-1/3">
                     <TabsHeader>
                         <Tab
-                            key={"Freelancer"}
-                            value={"Freelancer"}
-                            onClick={() => setIsFreelancer(true)}
+                            key={"worker"}
+                            value={"worker"}
+                            onClick={() => setIsWorker(true)}
                         >
-                            Freelancer
+                            Worker
                         </Tab>
-                        <Tab
-                            key={"Client"}
-                            value={"Client"}
-                            onClick={() => setIsFreelancer(false)}
-                        >
-                            Client
+                        <Tab key={"bm"} value={"bm"} onClick={() => setIsWorker(false)}>
+                            Bussiness Manager
                         </Tab>
                     </TabsHeader>
                 </Tabs>
@@ -90,88 +227,67 @@ export function SignUp() {
                     onSubmit={handleSubmit}
                 >
                     <div className="mb-1 flex flex-col gap-6">
-                        <TextInputLabel
-                            label="First name"
-                            placeholder="First name"
-                            value={first_name}
-                            onValueChange={setFirstName}
-                        />
-                        <TextInputLabel
-                            label="Last name"
-                            placeholder="Last name"
-                            value={last_name}
-                            onValueChange={setLastName}
-                        />
-                        <TextInputLabel
-                            label="Username"
-                            placeholder="Username"
-                            value={username}
-                            onValueChange={setUsername}
-                        />
-                        <TextInputLabel
-                            label="Email"
-                            placeholder="email@example.com"
-                            value={email}
-                            onValueChange={setEmail}
-                        />
-                        <TextInputLabel
-                            label="Phone number"
-                            placeholder="Phone number"
-                            value={phone}
-                            onValueChange={setPhone}
-                        />
-                        <TextInputLabel
-                            label="Password"
-                            placeholder="Password"
-                            value={password}
-                            onValueChange={setPassword}
-                            type="password"
-                        />
-                        {!isFreelancer && (
+                        {/* User fields */}
+                        {isWorker ? (
                             <>
-                                <TextInputLabel
-                                    label="Company tax id"
-                                    placeholder="Company tax id"
-                                    value={companyTaxId}
-                                    onValueChange={setCompanyTaxId}
+                                <UserForm
+                                    username={username}
+                                    setUsername={setUsername}
+                                    email={email}
+                                    setEmail={setEmail}
+                                    password={password}
+                                    setPassword={setPassword}
                                 />
-                                <TextInputLabel
-                                    label="Company name"
-                                    placeholder="Company name"
-                                    value={companyName}
-                                    onValueChange={setCompanyName}
+                                <CompanySelect
+                                    selectedCompany={selectedCompany}
+                                    setSelectedCompany={setSelectedCompany}
                                 />
-                                <TextInputLabel
-                                    label="City"
-                                    placeholder="City"
-                                    value={city}
-                                    onValueChange={setCity}
-                                />
-                                <TextInputLabel
-                                    label="Country"
-                                    placeholder="Country"
-                                    value={country}
-                                    onValueChange={setCountry}
-                                />
-                                <TextInputLabel
-                                    label="Address"
-                                    placeholder="Address"
-                                    value={address}
-                                    onValueChange={setAddress}
-                                />
-                                <TextInputLabel
-                                    label="Company telephone"
-                                    placeholder="Company telephone"
-                                    value={companyTelephone}
-                                    onValueChange={setCompanyTelephone}
-                                />
-                                <TextInputLabel
-                                    label="Company email"
-                                    placeholder="Company email"
-                                    value={companyEmail}
-                                    onValueChange={setCompnayEmail}
+                                <DepartmentSelect
+                                    companyId={selectedCompany?.id}
+                                    selectedDepartment={selectedDepartment}
+                                    setSelectedDepartment={setSelectedDepartment}
                                 />
                             </>
+                        ) : (
+                            <div>
+                                <Stepper activeStep={activeStep}>
+                                    {steps.map((label, index) => {
+                                        return (
+                                            <Step key={label}>
+                                                <Typography className="h5">{index + 1}</Typography>
+                                            </Step>
+                                        );
+                                    })}
+                                </Stepper>
+                                <div>
+                                    {activeStep === steps.length ? (
+                                        <div>
+                                            <Typography>¡Todos los pasos completados!</Typography>
+                                            <Button onClick={handleReset}>Resetear</Button>
+                                        </div>
+                                    ) : (
+                                        <div className="mt-4">
+                                            <Typography variant="h3" color="blue-gray" className="my-2">
+                                                {getSteps()[activeStep]}
+                                            </Typography>
+                                            {getStepContent(activeStep, stepProps)}
+                                            <div className="w-full my-4 flex flex-row items-center justify-between">
+                                                <Button
+                                                    disabled={activeStep === 0}
+                                                    onClick={handleBack}
+                                                >
+                                                    Atrás
+                                                </Button>
+                                                <Button onClick={handleNext} >
+                                                    {activeStep === steps.length - 1
+                                                        ? "Finalizar"
+                                                        : "Siguiente"}
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
                         )}
                     </div>
                     <Checkbox
@@ -182,21 +298,14 @@ export function SignUp() {
                                 className="flex items-center justify-start font-medium"
                             >
                                 I agree the&nbsp;
-                                <p
-                                    className="font-normal text-black transition-colors hover:text-gray-900 underline"
-                                >
+                                <span className="font-normal text-black transition-colors hover:text-gray-900 underline">
                                     Terms and Conditions
-                                </p>
+                                </span>
                             </Typography>
                         }
                         containerProps={{ className: "-ml-2.5" }}
                     />
-                    <Button
-                        className="mt-6"
-                        fullWidth
-                        color="blue"
-                        type="submit"
-                    >
+                    <Button className="mt-6" fullWidth color="blue" type="submit" disabled={!username || !password || !email}>
                         {"Register Now"}
                     </Button>
                     {error && (

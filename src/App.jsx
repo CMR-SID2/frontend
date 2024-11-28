@@ -1,5 +1,5 @@
 import { Route, Routes } from "react-router-dom"
-import { AuthLayout, HomeLayout, ProductLayout } from "./layout"
+import { AuthLayout, ContractLayout, HomeLayout, ProductLayout } from "./layout"
 
 function App() {
   return (
@@ -8,6 +8,7 @@ function App() {
         <Route path="/*" element={<HomeLayout />} />
         <Route path="/products/*" element={<ProductLayout />} />
         <Route path="/auth/*" element={<AuthLayout />} />
+        <Route path="/contracts/*" element={<ContractLayout />} />
       </Routes>
     </div>
   )

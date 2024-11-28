@@ -16,18 +16,19 @@ import { CategorySidebar } from "../../widgets/layout";
 import { ProductList } from "../../widgets/custom";
 import { MagnifyingGlassIcon, PlusIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import { useNavigate } from "react-router-dom";
+import { useSortedCategories } from "../../hooks/usePreferredCategories";
 
 export function ProductPage() {
     const [category, setCategory] = useState("All");
     const [searchQuery, setSearchQuery] = useState("");
-    const [sortOption, setSortOption] = useState("popular");
-
+    const [sortOption, setSortOption] = useState("price-asc");
     const navigate = useNavigate();
 
+
     return (
-        <div className="flex max-w-screen bg-gray-50 ">
+        <div className="flex min-w-full bg-gray-50 ">
             <CategorySidebar setCategory={setCategory} />
-            <div className="w-full p-8 space-y-10">
+            <div className="w-5/6 p-8">
                 {/* Header de productos */}
                 <Card shadow={true} className="bg-blue-800 text-white p-8 mb-8 rounded-2xl bg">
                     <CardBody className="text-center">
@@ -41,7 +42,7 @@ export function ProductPage() {
                 </Card>
 
                 {/* Barra de búsqueda y filtros */}
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between space-x-4 space-y-6 md:space-y-0">
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between md:space-x-4">
                     {/* Barra de búsqueda con icono */}
 
                     <Input
@@ -59,10 +60,8 @@ export function ProductPage() {
                         onChange={(value) => setSortOption(value)}
                         className="lg:w-full md:w-1/4"
                     >
-                        <Option value="popular">Popularidad</Option>
                         <Option value="price-asc">Precio: Menor a Mayor</Option>
                         <Option value="price-desc">Precio: Mayor a Menor</Option>
-                        <Option value="rating">Calificación</Option>
                     </Select>
                 </div>
 
@@ -70,15 +69,19 @@ export function ProductPage() {
                 <div className="mt-8">
                     <ProductList category={category} searchQuery={searchQuery} sortOption={sortOption} />
                 </div>
-                <div className="fixed bottom-8 right-8">
-                    <SpeedDial>
-                        <SpeedDialHandler>
-                            <IconButton size="lg" className="rounded-full" onClick={() => navigate("/products/manage")}>
-                                <PlusIcon className="h-5 w-5 transition-transform group-hover:rotate-45" />
-                            </IconButton>
-                        </SpeedDialHandler>
-                    </SpeedDial>
-                </div>
+                {
+                    (sessionStorage.getItem("roles")?.includes("ADMIN")) && (
+                        <div className="fixed bottom-8 right-8">
+                            <SpeedDial>
+                                <SpeedDialHandler>
+                                    <IconButton size="lg" className="rounded-full" onClick={() => navigate("/products/manage")}>
+                                        <PlusIcon className="h-5 w-5 transition-transform group-hover:rotate-45" />
+                                    </IconButton>
+                                </SpeedDialHandler>
+                            </SpeedDial>
+                        </div>
+                    )
+                }
             </div>
         </div>
     );
