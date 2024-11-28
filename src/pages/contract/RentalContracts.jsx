@@ -126,6 +126,8 @@ export function RentalContracts() {
 
     const handleInputChange = (e) => {
         const { name, value } = e.target;
+        // console.log("Name: ", name);
+        // console.log("Value: ", value);
         setFormData((prev) => ({
             ...prev,
             [name]: value,
@@ -161,7 +163,12 @@ export function RentalContracts() {
             endDate: formatDateToTimestamp(formData.endDate),
             monthlyCost: parseFloat(formData.monthlyCost),
             departmentId: user.departmentId,
+            accepted: Boolean(formData.accepted),
+            isClosed: Boolean(formData.isClosed),
         };
+
+        console.log("newContract: ", newContract);
+
         try {
             const response = await updateContract(newContract.id, newContract);
             if (response.status === 200) {
@@ -303,33 +310,33 @@ export function RentalContracts() {
 
                                 <Select
                                     label="Estado de aceptacion"
-                                    value={formData.accepted}
+                                    value={String(formData.accepted)}
                                     onChange={(value) =>
                                         handleInputChange({
                                             target: {
                                                 name: "accepted",
-                                                value: value == "accept" ? true : false,
+                                                value
                                             },
                                         })
                                     }
                                 >
-                                    <Option value="accept"> Aceptar </Option>
-                                    <Option value="reject"> Rechazar </Option>
+                                    <Option value={"true"}> Aceptar </Option>
+                                    <Option value={"false"}> Rechazar </Option>
                                 </Select>
                                 <Select
                                     label="Estado del contrato"
-                                    value={formData.isClosed}
+                                    value={String(formData.isClosed)}
                                     onChange={(value) =>
                                         handleInputChange({
                                             target: {
                                                 name: "isClosed",
-                                                value: value == "closed" ? true : false,
+                                                value
                                             },
                                         })
                                     }
                                 >
-                                    <Option value="closed"> Cerrado </Option>
-                                    <Option value="open"> Abierto </Option>
+                                    <Option value={"true"}> Cerrado </Option>
+                                    <Option value={"false"}> Abierto </Option>
                                 </Select>
                             </>
                         )

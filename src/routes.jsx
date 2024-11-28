@@ -1,5 +1,5 @@
 import { SignIn, SignUp } from "./pages/auth";
-import { RentalContracts } from "./pages/contract";
+import { DeliveryCertificates, RentalContracts } from "./pages/contract";
 import { Homepage } from "./pages/home";
 import { CartAndFavorites, ProductDetail, ProductManagement, ProductPage } from "./pages/product";
 
@@ -60,9 +60,14 @@ export const routes = [
     layout: "contracts",
     pages: [
       {
-        name: "homepage",
+        name: "contracts",
         path: "/",
         element: <RentalContracts />,
+      },
+      {
+        name: "delivery certificates",
+        path: "/delivery-certificates",
+        element: <DeliveryCertificates />,
       },
     ],
   },

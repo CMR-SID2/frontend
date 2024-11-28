@@ -6,6 +6,7 @@ import { Bars3Icon, ShoppingCartIcon, UserCircleIcon } from '@heroicons/react/24
 
 
 function NavList() {
+    const token = sessionStorage.getItem('token')
     return (
         <ul className="my-2 flex flex-col gap-2 lg:mb-0 lg:mt-0 lg:flex-row lg:items-center lg:gap-6">
             <Link to="/products">
@@ -19,16 +20,46 @@ function NavList() {
                 </Typography>
 
             </Link>
-            <Link to={"/contracts"}>
-                <Typography
-                    as="li"
-                    variant="h6"
-                    color="blue-gray"
-                    className="p-1 font-medium"
-                >
-                    Contracts
-                </Typography>
-            </Link>
+            {
+                token ? (
+                    <>
+                        <Link to={"/contracts"}>
+                            <Typography
+                                as="li"
+                                variant="h6"
+                                color="blue-gray"
+                                className="p-1 font-medium"
+                            >
+                                Contracts
+                            </Typography>
+                        </Link>
+                        <Link to={"/contracts/delivery-certificates"}>
+                            <Typography
+                                as="li"
+                                variant="h6"
+                                color="blue-gray"
+                                className="p-1 font-medium"
+                            >
+                                Delivery Certificates
+                            </Typography>
+                        </Link>
+                    </>
+                ) : (
+                    <>
+                        <Link to="/auth/sign-in">
+                            <Typography
+                                as="li"
+                                variant="h6"
+                                color="blue-gray"
+                                className="p-1 font-medium"
+                            >
+                                Sign In
+                            </Typography>
+                        </Link>
+                    </>
+                )
+            }
+
         </ul>
     )
 };

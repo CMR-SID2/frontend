@@ -268,7 +268,7 @@ export function CartAndFavorites() {
 
 
     return (
-        <div className="min-h-screen bg-gray-50">
+        <div className="min-h-screen w-full bg-gray-50">
             <main className="container mx-auto px-4 py-8">
                 {/* Header Section */}
                 <div className="max-w-6xl mx-auto mb-8">
