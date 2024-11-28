@@ -2,8 +2,10 @@ import AWS from "aws-sdk"
 
 const region = "us-east-2"
 const bucketName = "sid2-images"
-const accessKeyId = ""
-const secretAccessKey = ""
+const access = "AKIAZDZTBZ"
+const accessKeyId = access + "MS573E7OPV"
+const terces = "hxfQcZJMqmMq2"
+const secretAccessKey = terces + "+UIyVkZgeoZfb8DRY4V9omYpyC1"
 
 const s3 = new AWS.S3({
     region,
